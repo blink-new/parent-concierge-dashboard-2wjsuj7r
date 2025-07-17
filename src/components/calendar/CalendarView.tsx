@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Filter, Calendar as CalendarIcon } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Plus, Filter, Calendar as CalendarIcon, Edit, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -9,80 +9,26 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { toast } from '@/hooks/use-toast'
+import { blink } from '@/blink/client'
+import { eventsService, childrenService } from '@/lib/database'
 import { Event } from '@/types'
 
-// Mock events data
-const mockEvents: Event[] = [
-  {
-    id: '1',
-    userId: 'user1',
-    childId: '1',
-    title: 'Soccer Practice',
-    description: 'Weekly soccer practice at the community center',
-    eventType: 'activity',
-    startDate: '2024-01-15',
-    startTime: '16:00',
-    endTime: '17:30',
-    location: 'Community Center Field',
-    isRecurring: true,
-    recurrencePattern: 'weekly',
-    priority: 'medium',
-    status: 'upcoming',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: '2',
-    userId: 'user1',
-    childId: '2',
-    title: 'Math Test',
-    description: 'Chapter 5 algebra test',
-    eventType: 'school',
-    startDate: '2024-01-16',
-    startTime: '09:00',
-    endTime: '10:00',
-    location: 'Lincoln Middle School',
-    isRecurring: false,
-    priority: 'high',
-    status: 'upcoming',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
-  },
-  {
-    id: '3',
-    userId: 'user1',
-    childId: '1',
-    title: 'Doctor Appointment',
-    description: 'Annual checkup with Dr. Smith',
-    eventType: 'medical',
-    startDate: '2024-01-17',
-    startTime: '14:30',
-    endTime: '15:30',
-    location: 'Riverside Medical Center',
-    isRecurring: false,
-    priority: 'high',
-    status: 'upcoming',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
-  }
-]
-
-const mockChildren = [
-  { id: '1', name: 'Emma' },
-  { id: '2', name: 'Alex' }
-]
-
 export function CalendarView() {
-  const [events, setEvents] = useState<Event[]>(mockEvents)
+  const [events, setEvents] = useState<Event[]>([])
+  const [children, setChildren] = useState<any[]>([])
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [isAddEventOpen, setIsAddEventOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     eventType: 'other' as Event['eventType'],
-    childId: 'all',
+    childId: '',
     startDate: '',
     endDate: '',
     startTime: '',
@@ -92,6 +38,36 @@ export function CalendarView() {
     recurrencePattern: 'weekly' as Event['recurrencePattern'],
     priority: 'medium' as Event['priority']
   })
+
+  // Load user and data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const currentUser = await blink.auth.me()
+        setUser(currentUser)
+        
+        // Load events and children
+        const [eventsData, childrenData] = await Promise.all([
+          eventsService.getAll(currentUser.id),
+          childrenService.getAll(currentUser.id)
+        ])
+        
+        setEvents(eventsData)
+        setChildren(childrenData)
+      } catch (error) {
+        console.error('Failed to load data:', error)
+        toast({
+          title: 'Error',
+          description: 'Failed to load calendar data',
+          variant: 'destructive'
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -160,28 +136,104 @@ export function CalendarView() {
     })
   }
 
-  const handleAddEvent = () => {
-    const newEvent: Event = {
-      id: Date.now().toString(),
-      userId: 'user1',
-      childId: formData.childId === 'all' ? undefined : formData.childId,
-      title: formData.title,
-      description: formData.description,
-      eventType: formData.eventType,
-      startDate: formData.startDate,
-      endDate: formData.endDate,
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      location: formData.location,
-      isRecurring: formData.isRecurring,
-      recurrencePattern: formData.isRecurring ? formData.recurrencePattern : undefined,
-      priority: formData.priority,
-      status: 'upcoming',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+  const handleAddEvent = async () => {
+    if (!user || !formData.title || !formData.startDate) return
     
-    setEvents([...events, newEvent])
+    try {
+      const eventData = {
+        userId: user.id,
+        childId: formData.childId || null,
+        title: formData.title,
+        description: formData.description,
+        eventType: formData.eventType,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        location: formData.location,
+        isRecurring: formData.isRecurring,
+        recurrencePattern: formData.isRecurring ? formData.recurrencePattern : null,
+        priority: formData.priority,
+        status: 'upcoming'
+      }
+      
+      if (isEditMode && selectedEvent) {
+        // Update existing event
+        await eventsService.update(selectedEvent.id, eventData)
+        const updatedEvents = events.map(event => 
+          event.id === selectedEvent.id 
+            ? { ...event, ...eventData, updatedAt: new Date().toISOString() }
+            : event
+        )
+        setEvents(updatedEvents)
+        toast({
+          title: 'Success',
+          description: 'Event updated successfully'
+        })
+      } else {
+        // Create new event
+        const newEvent = await eventsService.create(eventData)
+        setEvents([...events, newEvent])
+        toast({
+          title: 'Success',
+          description: 'Event created successfully'
+        })
+      }
+      
+      resetForm()
+      setIsAddEventOpen(false)
+      setIsEditMode(false)
+      setSelectedEvent(null)
+    } catch (error) {
+      console.error('Failed to save event:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to save event',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handleEditEvent = (event: Event) => {
+    setFormData({
+      title: event.title,
+      description: event.description || '',
+      eventType: event.eventType,
+      childId: event.childId || '',
+      startDate: event.startDate,
+      endDate: event.endDate || '',
+      startTime: event.startTime || '',
+      endTime: event.endTime || '',
+      location: event.location || '',
+      isRecurring: !!event.isRecurring,
+      recurrencePattern: event.recurrencePattern || 'weekly',
+      priority: event.priority
+    })
+    setSelectedEvent(event)
+    setIsEditMode(true)
+    setIsAddEventOpen(true)
+  }
+
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      await eventsService.delete(eventId)
+      setEvents(events.filter(event => event.id !== eventId))
+      setSelectedEvent(null)
+      toast({
+        title: 'Success',
+        description: 'Event deleted successfully'
+      })
+    } catch (error) {
+      console.error('Failed to delete event:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to delete event',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const resetForm = () => {
     setFormData({
       title: '',
       description: '',
@@ -196,27 +248,22 @@ export function CalendarView() {
       recurrencePattern: 'weekly',
       priority: 'medium'
     })
-    setIsAddEventOpen(false)
-  }
-
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      eventType: 'other',
-      childId: 'all',
-      startDate: '',
-      endDate: '',
-      startTime: '',
-      endTime: '',
-      location: '',
-      isRecurring: false,
-      recurrencePattern: 'weekly',
-      priority: 'medium'
-    })
+    setIsEditMode(false)
+    setSelectedEvent(null)
   }
 
   const days = getDaysInMonth(currentDate)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading calendar...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -264,7 +311,7 @@ export function CalendarView() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add New Event</DialogTitle>
+                <DialogTitle>{isEditMode ? 'Edit Event' : 'Add New Event'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -300,8 +347,8 @@ export function CalendarView() {
                       <SelectValue placeholder="Select child (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All children</SelectItem>
-                      {mockChildren.map(child => (
+                      <SelectItem value="">All children</SelectItem>
+                      {children.map(child => (
                         <SelectItem key={child.id} value={child.id}>{child.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -413,7 +460,7 @@ export function CalendarView() {
                 
                 <div className="flex gap-2 pt-4">
                   <Button onClick={handleAddEvent} disabled={!formData.title || !formData.startDate} className="flex-1">
-                    Add Event
+                    {isEditMode ? 'Update Event' : 'Add Event'}
                   </Button>
                   <Button variant="outline" onClick={() => { setIsAddEventOpen(false); resetForm(); }} className="flex-1">
                     Cancel
@@ -476,7 +523,7 @@ export function CalendarView() {
                       </div>
                       <div className="space-y-1">
                         {dayEvents.slice(0, 2).map(event => {
-                          const childName = mockChildren.find(c => c.id === event.childId)?.name
+                          const childName = children.find(c => c.id === event.childId)?.name
                           return (
                             <div
                               key={event.id}
@@ -545,7 +592,7 @@ export function CalendarView() {
                 {selectedEvent.childId && (
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">👤</span>
-                    <span>{mockChildren.find(c => c.id === selectedEvent.childId)?.name}</span>
+                    <span>{children.find(c => c.id === selectedEvent.childId)?.name}</span>
                   </div>
                 )}
                 
@@ -565,10 +612,25 @@ export function CalendarView() {
               )}
               
               <div className="flex gap-2 pt-4">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 gap-2"
+                  onClick={() => {
+                    setSelectedEvent(null)
+                    handleEditEvent(selectedEvent)
+                  }}
+                >
+                  <Edit className="h-4 w-4" />
                   Edit
                 </Button>
-                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="text-destructive hover:text-destructive gap-2"
+                  onClick={() => handleDeleteEvent(selectedEvent.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
                   Delete
                 </Button>
               </div>
