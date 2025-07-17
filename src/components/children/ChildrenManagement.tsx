@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit, Trash2, Calendar, FileText, CheckSquare, AlertCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar, FileText, CheckSquare } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -9,13 +9,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+
 import { Child } from '@/types'
 import { childrenService } from '@/lib/database'
 import { blink } from '@/blink/client'
-
-// Local storage key for children data
-const CHILDREN_STORAGE_KEY = 'parent-concierge-children'
 
 // Mock data for demonstration
 const mockChildren: Child[] = [
@@ -48,8 +45,6 @@ const mockChildren: Child[] = [
 export function ChildrenManagement() {
   const [children, setChildren] = useState<Child[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [usingLocalStorage, setUsingLocalStorage] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingChild, setEditingChild] = useState<Child | null>(null)
   const [formData, setFormData] = useState({
@@ -60,61 +55,23 @@ export function ChildrenManagement() {
     notes: ''
   })
 
-  // Load children from localStorage
-  const loadFromLocalStorage = () => {
-    try {
-      const stored = localStorage.getItem(CHILDREN_STORAGE_KEY)
-      if (stored) {
-        const parsedChildren = JSON.parse(stored)
-        setChildren(parsedChildren)
-      } else {
-        // Use mock data if no local storage data exists
-        setChildren(mockChildren)
-        localStorage.setItem(CHILDREN_STORAGE_KEY, JSON.stringify(mockChildren))
-      }
-      setUsingLocalStorage(true)
-    } catch (err) {
-      console.error('Error loading from localStorage:', err)
-      setChildren(mockChildren)
-      setUsingLocalStorage(true)
-    }
-  }
-
-  // Save children to localStorage
-  const saveToLocalStorage = (childrenData: Child[]) => {
-    try {
-      localStorage.setItem(CHILDREN_STORAGE_KEY, JSON.stringify(childrenData))
-    } catch (err) {
-      console.error('Error saving to localStorage:', err)
-    }
-  }
-
   const loadChildren = useCallback(async () => {
     try {
       setLoading(true)
-      setError(null)
       
       const user = await blink.auth.me()
       if (user) {
-        // Try to load from database first
-        try {
-          const childrenData = await childrenService.getAll(user.id)
-          setChildren(childrenData)
-          setUsingLocalStorage(false)
-        } catch (dbError) {
-          console.error('Database error, falling back to localStorage:', dbError)
-          setError('Database temporarily unavailable. Using local storage.')
-          loadFromLocalStorage()
-        }
+        // Load from localStorage (primary storage method)
+        const childrenData = await childrenService.getAll(user.id)
+        setChildren(childrenData)
       } else {
         // No user, use mock data
         setChildren(mockChildren)
-        setUsingLocalStorage(true)
       }
     } catch (error) {
       console.error('Failed to load children:', error)
-      setError('Failed to load children data.')
-      loadFromLocalStorage()
+      // Fallback to mock data
+      setChildren(mockChildren)
     } finally {
       setLoading(false)
     }
@@ -134,46 +91,16 @@ export function ChildrenManagement() {
       const user = await blink.auth.me()
       const userId = user?.id || 'demo-user'
 
-      const newChild: Child = {
-        id: generateId(),
+      const createdChild = await childrenService.create({
         userId,
         name: formData.name,
         birthDate: formData.birthDate,
         school: formData.school,
         grade: formData.grade,
-        notes: formData.notes,
-        avatarUrl: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      if (usingLocalStorage) {
-        // Add to local storage
-        const updatedChildren = [newChild, ...children]
-        setChildren(updatedChildren)
-        saveToLocalStorage(updatedChildren)
-      } else {
-        // Try to add to database
-        try {
-          const createdChild = await childrenService.create({
-            userId,
-            name: formData.name,
-            birthDate: formData.birthDate,
-            school: formData.school,
-            grade: formData.grade,
-            notes: formData.notes
-          })
-          setChildren([createdChild, ...children])
-        } catch (dbError) {
-          console.error('Database error, saving to localStorage:', dbError)
-          const updatedChildren = [newChild, ...children]
-          setChildren(updatedChildren)
-          saveToLocalStorage(updatedChildren)
-          setUsingLocalStorage(true)
-          setError('Database temporarily unavailable. Changes saved locally.')
-        }
-      }
+        notes: formData.notes
+      })
       
+      setChildren([createdChild, ...children])
       setFormData({ name: '', birthDate: '', school: '', grade: '', notes: '' })
       setIsAddDialogOpen(false)
     } catch (error) {
@@ -201,35 +128,13 @@ export function ChildrenManagement() {
         birthDate: formData.birthDate,
         school: formData.school,
         grade: formData.grade,
-        notes: formData.notes,
-        updatedAt: new Date().toISOString()
+        notes: formData.notes
       }
 
-      if (usingLocalStorage) {
-        // Update in local storage
-        const updatedChildren = children.map(child =>
-          child.id === editingChild.id ? { ...child, ...updatedData } : child
-        )
-        setChildren(updatedChildren)
-        saveToLocalStorage(updatedChildren)
-      } else {
-        // Try to update in database
-        try {
-          await childrenService.update(editingChild.id, updatedData)
-          setChildren(children.map(child =>
-            child.id === editingChild.id ? { ...child, ...updatedData } : child
-          ))
-        } catch (dbError) {
-          console.error('Database error, updating localStorage:', dbError)
-          const updatedChildren = children.map(child =>
-            child.id === editingChild.id ? { ...child, ...updatedData } : child
-          )
-          setChildren(updatedChildren)
-          saveToLocalStorage(updatedChildren)
-          setUsingLocalStorage(true)
-          setError('Database temporarily unavailable. Changes saved locally.')
-        }
-      }
+      await childrenService.update(editingChild.id, updatedData)
+      setChildren(children.map(child =>
+        child.id === editingChild.id ? { ...child, ...updatedData } : child
+      ))
       
       setEditingChild(null)
       setFormData({ name: '', birthDate: '', school: '', grade: '', notes: '' })
@@ -240,25 +145,8 @@ export function ChildrenManagement() {
 
   const handleDeleteChild = async (childId: string) => {
     try {
-      if (usingLocalStorage) {
-        // Delete from local storage
-        const updatedChildren = children.filter(child => child.id !== childId)
-        setChildren(updatedChildren)
-        saveToLocalStorage(updatedChildren)
-      } else {
-        // Try to delete from database
-        try {
-          await childrenService.delete(childId)
-          setChildren(children.filter(child => child.id !== childId))
-        } catch (dbError) {
-          console.error('Database error, deleting from localStorage:', dbError)
-          const updatedChildren = children.filter(child => child.id !== childId)
-          setChildren(updatedChildren)
-          saveToLocalStorage(updatedChildren)
-          setUsingLocalStorage(true)
-          setError('Database temporarily unavailable. Changes saved locally.')
-        }
-      }
+      await childrenService.delete(childId)
+      setChildren(children.filter(child => child.id !== childId))
     } catch (error) {
       console.error('Failed to delete child:', error)
     }
@@ -314,24 +202,6 @@ export function ChildrenManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Error Alert */}
-      {error && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Storage Mode Alert */}
-      {usingLocalStorage && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Currently using local storage. Your data is saved in your browser and will persist between sessions.
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

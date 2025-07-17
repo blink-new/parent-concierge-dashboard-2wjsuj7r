@@ -12,13 +12,16 @@ export const getCurrentTimestamp = () => {
 // Children operations
 export const childrenService = {
   async getAll(userId: string) {
+    // Use localStorage as primary storage due to database limitations
     try {
-      return await blink.db.children.list({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
-      })
+      const stored = localStorage.getItem('parent-concierge-children')
+      if (stored) {
+        const children = JSON.parse(stored)
+        return children.filter((child: any) => child.userId === userId)
+      }
+      return []
     } catch (error) {
-      console.error('Error fetching children:', error)
+      console.error('Error fetching children from localStorage:', error)
       return []
     }
   },
@@ -37,7 +40,14 @@ export const childrenService = {
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp()
       }
-      return await blink.db.children.create(child)
+      
+      // Save to localStorage
+      const stored = localStorage.getItem('parent-concierge-children')
+      const children = stored ? JSON.parse(stored) : []
+      children.unshift(child)
+      localStorage.setItem('parent-concierge-children', JSON.stringify(children))
+      
+      return child
     } catch (error) {
       console.error('Error creating child:', error)
       throw error
@@ -46,10 +56,17 @@ export const childrenService = {
 
   async update(id: string, data: any) {
     try {
-      return await blink.db.children.update(id, {
-        ...data,
-        updatedAt: getCurrentTimestamp()
-      })
+      const stored = localStorage.getItem('parent-concierge-children')
+      if (stored) {
+        const children = JSON.parse(stored)
+        const index = children.findIndex((child: any) => child.id === id)
+        if (index !== -1) {
+          children[index] = { ...children[index], ...data, updatedAt: getCurrentTimestamp() }
+          localStorage.setItem('parent-concierge-children', JSON.stringify(children))
+          return children[index]
+        }
+      }
+      throw new Error('Child not found')
     } catch (error) {
       console.error('Error updating child:', error)
       throw error
@@ -58,7 +75,14 @@ export const childrenService = {
 
   async delete(id: string) {
     try {
-      return await blink.db.children.delete(id)
+      const stored = localStorage.getItem('parent-concierge-children')
+      if (stored) {
+        const children = JSON.parse(stored)
+        const filteredChildren = children.filter((child: any) => child.id !== id)
+        localStorage.setItem('parent-concierge-children', JSON.stringify(filteredChildren))
+        return true
+      }
+      return false
     } catch (error) {
       console.error('Error deleting child:', error)
       throw error
@@ -70,12 +94,14 @@ export const childrenService = {
 export const eventsService = {
   async getAll(userId: string) {
     try {
-      return await blink.db.events.list({
-        where: { userId },
-        orderBy: { startDate: 'asc' }
-      })
+      const stored = localStorage.getItem('parent-concierge-events')
+      if (stored) {
+        const events = JSON.parse(stored)
+        return events.filter((event: any) => event.userId === userId)
+      }
+      return []
     } catch (error) {
-      console.error('Error fetching events:', error)
+      console.error('Error fetching events from localStorage:', error)
       return []
     }
   },
@@ -101,7 +127,14 @@ export const eventsService = {
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp()
       }
-      return await blink.db.events.create(event)
+      
+      // Save to localStorage
+      const stored = localStorage.getItem('parent-concierge-events')
+      const events = stored ? JSON.parse(stored) : []
+      events.unshift(event)
+      localStorage.setItem('parent-concierge-events', JSON.stringify(events))
+      
+      return event
     } catch (error) {
       console.error('Error creating event:', error)
       throw error
@@ -110,10 +143,17 @@ export const eventsService = {
 
   async update(id: string, data: any) {
     try {
-      return await blink.db.events.update(id, {
-        ...data,
-        updatedAt: getCurrentTimestamp()
-      })
+      const stored = localStorage.getItem('parent-concierge-events')
+      if (stored) {
+        const events = JSON.parse(stored)
+        const index = events.findIndex((event: any) => event.id === id)
+        if (index !== -1) {
+          events[index] = { ...events[index], ...data, updatedAt: getCurrentTimestamp() }
+          localStorage.setItem('parent-concierge-events', JSON.stringify(events))
+          return events[index]
+        }
+      }
+      throw new Error('Event not found')
     } catch (error) {
       console.error('Error updating event:', error)
       throw error
@@ -122,7 +162,14 @@ export const eventsService = {
 
   async delete(id: string) {
     try {
-      return await blink.db.events.delete(id)
+      const stored = localStorage.getItem('parent-concierge-events')
+      if (stored) {
+        const events = JSON.parse(stored)
+        const filteredEvents = events.filter((event: any) => event.id !== id)
+        localStorage.setItem('parent-concierge-events', JSON.stringify(filteredEvents))
+        return true
+      }
+      return false
     } catch (error) {
       console.error('Error deleting event:', error)
       throw error
@@ -134,12 +181,14 @@ export const eventsService = {
 export const tasksService = {
   async getAll(userId: string) {
     try {
-      return await blink.db.tasks.list({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
-      })
+      const stored = localStorage.getItem('parent-concierge-tasks')
+      if (stored) {
+        const tasks = JSON.parse(stored)
+        return tasks.filter((task: any) => task.userId === userId)
+      }
+      return []
     } catch (error) {
-      console.error('Error fetching tasks:', error)
+      console.error('Error fetching tasks from localStorage:', error)
       return []
     }
   },
@@ -159,7 +208,14 @@ export const tasksService = {
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp()
       }
-      return await blink.db.tasks.create(task)
+      
+      // Save to localStorage
+      const stored = localStorage.getItem('parent-concierge-tasks')
+      const tasks = stored ? JSON.parse(stored) : []
+      tasks.unshift(task)
+      localStorage.setItem('parent-concierge-tasks', JSON.stringify(tasks))
+      
+      return task
     } catch (error) {
       console.error('Error creating task:', error)
       throw error
@@ -168,10 +224,17 @@ export const tasksService = {
 
   async update(id: string, data: any) {
     try {
-      return await blink.db.tasks.update(id, {
-        ...data,
-        updatedAt: getCurrentTimestamp()
-      })
+      const stored = localStorage.getItem('parent-concierge-tasks')
+      if (stored) {
+        const tasks = JSON.parse(stored)
+        const index = tasks.findIndex((task: any) => task.id === id)
+        if (index !== -1) {
+          tasks[index] = { ...tasks[index], ...data, updatedAt: getCurrentTimestamp() }
+          localStorage.setItem('parent-concierge-tasks', JSON.stringify(tasks))
+          return tasks[index]
+        }
+      }
+      throw new Error('Task not found')
     } catch (error) {
       console.error('Error updating task:', error)
       throw error
@@ -180,7 +243,14 @@ export const tasksService = {
 
   async delete(id: string) {
     try {
-      return await blink.db.tasks.delete(id)
+      const stored = localStorage.getItem('parent-concierge-tasks')
+      if (stored) {
+        const tasks = JSON.parse(stored)
+        const filteredTasks = tasks.filter((task: any) => task.id !== id)
+        localStorage.setItem('parent-concierge-tasks', JSON.stringify(filteredTasks))
+        return true
+      }
+      return false
     } catch (error) {
       console.error('Error deleting task:', error)
       throw error
@@ -192,12 +262,14 @@ export const tasksService = {
 export const documentsService = {
   async getAll(userId: string) {
     try {
-      return await blink.db.documents.list({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
-      })
+      const stored = localStorage.getItem('parent-concierge-documents')
+      if (stored) {
+        const documents = JSON.parse(stored)
+        return documents.filter((document: any) => document.userId === userId)
+      }
+      return []
     } catch (error) {
-      console.error('Error fetching documents:', error)
+      console.error('Error fetching documents from localStorage:', error)
       return []
     }
   },
@@ -215,7 +287,14 @@ export const documentsService = {
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp()
       }
-      return await blink.db.documents.create(document)
+      
+      // Save to localStorage
+      const stored = localStorage.getItem('parent-concierge-documents')
+      const documents = stored ? JSON.parse(stored) : []
+      documents.unshift(document)
+      localStorage.setItem('parent-concierge-documents', JSON.stringify(documents))
+      
+      return document
     } catch (error) {
       console.error('Error creating document:', error)
       throw error
@@ -224,10 +303,17 @@ export const documentsService = {
 
   async update(id: string, data: any) {
     try {
-      return await blink.db.documents.update(id, {
-        ...data,
-        updatedAt: getCurrentTimestamp()
-      })
+      const stored = localStorage.getItem('parent-concierge-documents')
+      if (stored) {
+        const documents = JSON.parse(stored)
+        const index = documents.findIndex((document: any) => document.id === id)
+        if (index !== -1) {
+          documents[index] = { ...documents[index], ...data, updatedAt: getCurrentTimestamp() }
+          localStorage.setItem('parent-concierge-documents', JSON.stringify(documents))
+          return documents[index]
+        }
+      }
+      throw new Error('Document not found')
     } catch (error) {
       console.error('Error updating document:', error)
       throw error
@@ -236,7 +322,14 @@ export const documentsService = {
 
   async delete(id: string) {
     try {
-      return await blink.db.documents.delete(id)
+      const stored = localStorage.getItem('parent-concierge-documents')
+      if (stored) {
+        const documents = JSON.parse(stored)
+        const filteredDocuments = documents.filter((document: any) => document.id !== id)
+        localStorage.setItem('parent-concierge-documents', JSON.stringify(filteredDocuments))
+        return true
+      }
+      return false
     } catch (error) {
       console.error('Error deleting document:', error)
       throw error
