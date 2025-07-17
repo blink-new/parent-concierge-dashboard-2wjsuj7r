@@ -12,7 +12,8 @@ export const getCurrentTimestamp = () => {
 // Children operations
 export const childrenService = {
   async getAll(userId: string) {
-    // Use localStorage as primary storage due to database limitations
+    // TODO: Replace with database query
+    // const children = await blink.db.children.list({ where: { userId } })
     try {
       const stored = localStorage.getItem('parent-concierge-children')
       if (stored) {
@@ -27,6 +28,8 @@ export const childrenService = {
   },
 
   async create(data: any) {
+    // TODO: Replace with database insert
+    // const child = await blink.db.children.create({ ...data, id: generateId(), createdAt: getCurrentTimestamp(), updatedAt: getCurrentTimestamp() })
     try {
       const child = {
         id: generateId(),
@@ -41,7 +44,7 @@ export const childrenService = {
         updatedAt: getCurrentTimestamp()
       }
       
-      // Save to localStorage
+      // Save to localStorage (temporary storage)
       const stored = localStorage.getItem('parent-concierge-children')
       const children = stored ? JSON.parse(stored) : []
       children.unshift(child)
@@ -55,6 +58,8 @@ export const childrenService = {
   },
 
   async update(id: string, data: any) {
+    // TODO: Replace with database update
+    // const child = await blink.db.children.update(id, { ...data, updatedAt: getCurrentTimestamp() })
     try {
       const stored = localStorage.getItem('parent-concierge-children')
       if (stored) {
@@ -74,6 +79,8 @@ export const childrenService = {
   },
 
   async delete(id: string) {
+    // TODO: Replace with database delete
+    // await blink.db.children.delete(id)
     try {
       const stored = localStorage.getItem('parent-concierge-children')
       if (stored) {
@@ -93,11 +100,15 @@ export const childrenService = {
 // Events operations
 export const eventsService = {
   async getAll(userId: string) {
+    // TODO: Replace with database query
+    // const events = await blink.db.events.list({ where: { userId }, orderBy: { startDate: 'asc' } })
     try {
       const stored = localStorage.getItem('parent-concierge-events')
       if (stored) {
         const events = JSON.parse(stored)
-        return events.filter((event: any) => event.userId === userId)
+        return events
+          .filter((event: any) => event.userId === userId)
+          .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
       }
       return []
     } catch (error) {
@@ -107,6 +118,8 @@ export const eventsService = {
   },
 
   async create(data: any) {
+    // TODO: Replace with database insert
+    // const event = await blink.db.events.create({ ...data, id: generateId(), createdAt: getCurrentTimestamp(), updatedAt: getCurrentTimestamp() })
     try {
       const event = {
         id: generateId(),
@@ -120,7 +133,7 @@ export const eventsService = {
         startTime: data.startTime || null,
         endTime: data.endTime || null,
         location: data.location || null,
-        isRecurring: data.isRecurring ? 1 : 0,
+        isRecurring: data.isRecurring || false, // Store as boolean for localStorage
         recurrencePattern: data.recurrencePattern || null,
         priority: data.priority || 'medium',
         status: data.status || 'upcoming',
@@ -128,7 +141,7 @@ export const eventsService = {
         updatedAt: getCurrentTimestamp()
       }
       
-      // Save to localStorage
+      // Save to localStorage (temporary storage)
       const stored = localStorage.getItem('parent-concierge-events')
       const events = stored ? JSON.parse(stored) : []
       events.unshift(event)
@@ -142,6 +155,8 @@ export const eventsService = {
   },
 
   async update(id: string, data: any) {
+    // TODO: Replace with database update
+    // const event = await blink.db.events.update(id, { ...data, updatedAt: getCurrentTimestamp() })
     try {
       const stored = localStorage.getItem('parent-concierge-events')
       if (stored) {
@@ -161,6 +176,8 @@ export const eventsService = {
   },
 
   async delete(id: string) {
+    // TODO: Replace with database delete
+    // await blink.db.events.delete(id)
     try {
       const stored = localStorage.getItem('parent-concierge-events')
       if (stored) {
@@ -180,6 +197,8 @@ export const eventsService = {
 // Tasks operations
 export const tasksService = {
   async getAll(userId: string) {
+    // TODO: Replace with database query
+    // const tasks = await blink.db.tasks.list({ where: { userId }, orderBy: { dueDate: 'asc' } })
     try {
       const stored = localStorage.getItem('parent-concierge-tasks')
       if (stored) {
@@ -194,6 +213,8 @@ export const tasksService = {
   },
 
   async create(data: any) {
+    // TODO: Replace with database insert
+    // const task = await blink.db.tasks.create({ ...data, id: generateId(), createdAt: getCurrentTimestamp(), updatedAt: getCurrentTimestamp() })
     try {
       const task = {
         id: generateId(),
@@ -203,13 +224,13 @@ export const tasksService = {
         description: data.description || null,
         dueDate: data.dueDate || null,
         priority: data.priority || 'medium',
-        isCompleted: data.isCompleted ? 1 : 0,
+        isCompleted: data.isCompleted || false, // Store as boolean for localStorage
         category: data.category || 'other',
         createdAt: getCurrentTimestamp(),
         updatedAt: getCurrentTimestamp()
       }
       
-      // Save to localStorage
+      // Save to localStorage (temporary storage)
       const stored = localStorage.getItem('parent-concierge-tasks')
       const tasks = stored ? JSON.parse(stored) : []
       tasks.unshift(task)
@@ -223,6 +244,8 @@ export const tasksService = {
   },
 
   async update(id: string, data: any) {
+    // TODO: Replace with database update
+    // const task = await blink.db.tasks.update(id, { ...data, updatedAt: getCurrentTimestamp() })
     try {
       const stored = localStorage.getItem('parent-concierge-tasks')
       if (stored) {
@@ -242,6 +265,8 @@ export const tasksService = {
   },
 
   async delete(id: string) {
+    // TODO: Replace with database delete
+    // await blink.db.tasks.delete(id)
     try {
       const stored = localStorage.getItem('parent-concierge-tasks')
       if (stored) {
@@ -261,6 +286,8 @@ export const tasksService = {
 // Documents operations
 export const documentsService = {
   async getAll(userId: string) {
+    // TODO: Replace with database query
+    // const documents = await blink.db.documents.list({ where: { userId }, orderBy: { createdAt: 'desc' } })
     try {
       const stored = localStorage.getItem('parent-concierge-documents')
       if (stored) {
@@ -275,6 +302,8 @@ export const documentsService = {
   },
 
   async create(data: any) {
+    // TODO: Replace with database insert
+    // const document = await blink.db.documents.create({ ...data, id: generateId(), createdAt: getCurrentTimestamp(), updatedAt: getCurrentTimestamp() })
     try {
       const document = {
         id: generateId(),
@@ -288,7 +317,7 @@ export const documentsService = {
         updatedAt: getCurrentTimestamp()
       }
       
-      // Save to localStorage
+      // Save to localStorage (temporary storage)
       const stored = localStorage.getItem('parent-concierge-documents')
       const documents = stored ? JSON.parse(stored) : []
       documents.unshift(document)
@@ -302,6 +331,8 @@ export const documentsService = {
   },
 
   async update(id: string, data: any) {
+    // TODO: Replace with database update
+    // const document = await blink.db.documents.update(id, { ...data, updatedAt: getCurrentTimestamp() })
     try {
       const stored = localStorage.getItem('parent-concierge-documents')
       if (stored) {
@@ -321,6 +352,8 @@ export const documentsService = {
   },
 
   async delete(id: string) {
+    // TODO: Replace with database delete
+    // await blink.db.documents.delete(id)
     try {
       const stored = localStorage.getItem('parent-concierge-documents')
       if (stored) {
@@ -335,4 +368,122 @@ export const documentsService = {
       throw error
     }
   }
+}
+
+// Sample data generator for testing
+export const generateSampleData = (userId: string) => {
+  // Generate sample children
+  const sampleChildren = [
+    {
+      id: generateId(),
+      userId,
+      name: 'Emma Johnson',
+      birthDate: '2015-03-15',
+      school: 'Riverside Elementary',
+      grade: '3rd Grade',
+      notes: 'Loves art and reading',
+      avatarUrl: null,
+      createdAt: getCurrentTimestamp(),
+      updatedAt: getCurrentTimestamp()
+    },
+    {
+      id: generateId(),
+      userId,
+      name: 'Liam Johnson',
+      birthDate: '2018-07-22',
+      school: 'Riverside Elementary',
+      grade: 'Kindergarten',
+      notes: 'Very energetic, loves soccer',
+      avatarUrl: null,
+      createdAt: getCurrentTimestamp(),
+      updatedAt: getCurrentTimestamp()
+    }
+  ]
+
+  // Generate sample events
+  const today = new Date()
+  const sampleEvents = [
+    {
+      id: generateId(),
+      userId,
+      childId: sampleChildren[0].id,
+      title: 'Parent-Teacher Conference',
+      description: 'Meeting with Ms. Smith about Emma\'s progress',
+      eventType: 'school',
+      startDate: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: null,
+      startTime: '15:30',
+      endTime: '16:00',
+      location: 'Riverside Elementary - Room 12',
+      isRecurring: false,
+      recurrencePattern: null,
+      priority: 'high',
+      status: 'upcoming',
+      createdAt: getCurrentTimestamp(),
+      updatedAt: getCurrentTimestamp()
+    },
+    {
+      id: generateId(),
+      userId,
+      childId: sampleChildren[1].id,
+      title: 'Soccer Practice',
+      description: 'Weekly soccer practice with the team',
+      eventType: 'activity',
+      startDate: new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: null,
+      startTime: '16:00',
+      endTime: '17:30',
+      location: 'Community Park Field 2',
+      isRecurring: true,
+      recurrencePattern: 'weekly',
+      priority: 'medium',
+      status: 'upcoming',
+      createdAt: getCurrentTimestamp(),
+      updatedAt: getCurrentTimestamp()
+    },
+    {
+      id: generateId(),
+      userId,
+      childId: sampleChildren[0].id,
+      title: 'Dentist Appointment',
+      description: 'Regular checkup and cleaning',
+      eventType: 'medical',
+      startDate: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: null,
+      startTime: '10:00',
+      endTime: '11:00',
+      location: 'Smile Dental Clinic',
+      isRecurring: false,
+      recurrencePattern: null,
+      priority: 'medium',
+      status: 'upcoming',
+      createdAt: getCurrentTimestamp(),
+      updatedAt: getCurrentTimestamp()
+    },
+    {
+      id: generateId(),
+      userId,
+      childId: sampleChildren[0].id,
+      title: 'Emma\'s Birthday',
+      description: 'Emma turns 9!',
+      eventType: 'birthday',
+      startDate: '2025-03-15',
+      endDate: null,
+      startTime: null,
+      endTime: null,
+      location: null,
+      isRecurring: true,
+      recurrencePattern: 'yearly',
+      priority: 'high',
+      status: 'upcoming',
+      createdAt: getCurrentTimestamp(),
+      updatedAt: getCurrentTimestamp()
+    }
+  ]
+
+  // Save sample data to localStorage
+  localStorage.setItem('parent-concierge-children', JSON.stringify(sampleChildren))
+  localStorage.setItem('parent-concierge-events', JSON.stringify(sampleEvents))
+
+  return { children: sampleChildren, events: sampleEvents }
 }

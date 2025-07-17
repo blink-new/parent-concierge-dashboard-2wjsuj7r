@@ -11,13 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { toast } from '@/hooks/use-toast'
 import { blink } from '@/blink/client'
-import { eventsService, childrenService } from '@/lib/database'
+import { eventsService, childrenService, generateSampleData } from '@/lib/database'
 import { Event } from '@/types'
 
 export function CalendarView() {
   const [events, setEvents] = useState<Event[]>([])
   const [children, setChildren] = useState<any[]>([])
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [isAddEventOpen, setIsAddEventOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
@@ -52,8 +53,19 @@ export function CalendarView() {
           childrenService.getAll(currentUser.id)
         ])
         
-        setEvents(eventsData)
-        setChildren(childrenData)
+        // If no data exists, generate sample data for demo
+        if (eventsData.length === 0 && childrenData.length === 0) {
+          const sampleData = generateSampleData(currentUser.id)
+          setEvents(sampleData.events)
+          setChildren(sampleData.children)
+          toast({
+            title: 'Welcome!',
+            description: 'Sample data has been loaded to get you started.'
+          })
+        } else {
+          setEvents(eventsData)
+          setChildren(childrenData)
+        }
       } catch (error) {
         console.error('Failed to load data:', error)
         toast({
@@ -134,6 +146,26 @@ export function CalendarView() {
       }
       return newDate
     })
+  }
+
+  const handleDateClick = (date: Date | null) => {
+    if (!date) return
+    
+    setSelectedDate(date)
+    const dateString = date.toISOString().split('T')[0]
+    
+    // Pre-fill the form with the selected date
+    setFormData(prev => ({
+      ...prev,
+      startDate: dateString,
+      endDate: dateString
+    }))
+    
+    // Show events for this date or open add event dialog
+    const dayEvents = getEventsForDate(date)
+    if (dayEvents.length === 0) {
+      setIsAddEventOpen(true)
+    }
   }
 
   const handleAddEvent = async () => {
@@ -239,8 +271,8 @@ export function CalendarView() {
       description: '',
       eventType: 'other',
       childId: '',
-      startDate: '',
-      endDate: '',
+      startDate: selectedDate ? selectedDate.toISOString().split('T')[0] : '',
+      endDate: selectedDate ? selectedDate.toISOString().split('T')[0] : '',
       startTime: '',
       endTime: '',
       location: '',
@@ -508,13 +540,15 @@ export function CalendarView() {
             {days.map((day, index) => {
               const dayEvents = getEventsForDate(day)
               const isToday = day && day.toDateString() === new Date().toDateString()
+              const isSelected = selectedDate && day && day.toDateString() === selectedDate.toDateString()
               
               return (
                 <div
                   key={index}
-                  className={`min-h-[100px] p-2 border rounded-lg ${
+                  className={`min-h-[100px] p-2 border rounded-lg cursor-pointer transition-colors ${
                     day ? 'bg-white hover:bg-muted/50' : 'bg-muted/20'
-                  } ${isToday ? 'ring-2 ring-primary' : ''}`}
+                  } ${isToday ? 'ring-2 ring-primary' : ''} ${isSelected ? 'bg-primary/10 border-primary' : ''}`}
+                  onClick={() => handleDateClick(day)}
                 >
                   {day && (
                     <>
@@ -528,7 +562,10 @@ export function CalendarView() {
                             <div
                               key={event.id}
                               className={`text-xs p-1 rounded border cursor-pointer ${getEventTypeColor(event.eventType)}`}
-                              onClick={() => setSelectedEvent(event)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedEvent(event)
+                              }}
                             >
                               <div className="flex items-center gap-1">
                                 <div className={`w-2 h-2 rounded-full ${getPriorityColor(event.priority)}`} />
@@ -554,6 +591,66 @@ export function CalendarView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Selected Date Info */}
+      {selectedDate && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              {selectedDate.toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {getEventsForDate(selectedDate).length > 0 ? (
+              <div className="space-y-3">
+                {getEventsForDate(selectedDate).map(event => {
+                  const childName = children.find(c => c.id === event.childId)?.name
+                  return (
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                      onClick={() => setSelectedEvent(event)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${getPriorityColor(event.priority)}`} />
+                        <div>
+                          <div className="font-medium">{event.title}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {event.startTime && `${event.startTime}${event.endTime ? ` - ${event.endTime}` : ''}`}
+                            {childName && ` • ${childName}`}
+                            {event.location && ` • ${event.location}`}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge className={getEventTypeColor(event.eventType)}>
+                        {event.eventType}
+                      </Badge>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No events scheduled for this date</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => setIsAddEventOpen(true)}
+                >
+                  Add Event
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Event Details Dialog */}
       <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
