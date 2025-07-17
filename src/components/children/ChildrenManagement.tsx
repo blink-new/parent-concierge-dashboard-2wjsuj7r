@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Edit, Trash2, Calendar, FileText, CheckSquare } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Edit, Trash2, Calendar, FileText, CheckSquare, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -9,13 +9,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Child } from '@/types'
+import { childrenService } from '@/lib/database'
+import { blink } from '@/blink/client'
 
-// Mock data - will be replaced with real data later
+// Local storage key for children data
+const CHILDREN_STORAGE_KEY = 'parent-concierge-children'
+
+// Mock data for demonstration
 const mockChildren: Child[] = [
   {
     id: '1',
-    userId: 'user1',
+    userId: 'demo-user',
     name: 'Emma Johnson',
     birthDate: '2015-03-15',
     school: 'Riverside Elementary',
@@ -27,7 +33,7 @@ const mockChildren: Child[] = [
   },
   {
     id: '2',
-    userId: 'user1',
+    userId: 'demo-user',
     name: 'Alex Johnson',
     birthDate: '2011-08-22',
     school: 'Lincoln Middle School',
@@ -40,7 +46,10 @@ const mockChildren: Child[] = [
 ]
 
 export function ChildrenManagement() {
-  const [children, setChildren] = useState<Child[]>(mockChildren)
+  const [children, setChildren] = useState<Child[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [usingLocalStorage, setUsingLocalStorage] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingChild, setEditingChild] = useState<Child | null>(null)
   const [formData, setFormData] = useState({
@@ -51,23 +60,125 @@ export function ChildrenManagement() {
     notes: ''
   })
 
-  const handleAddChild = () => {
-    const newChild: Child = {
-      id: Date.now().toString(),
-      userId: 'user1',
-      name: formData.name,
-      birthDate: formData.birthDate,
-      school: formData.school,
-      grade: formData.grade,
-      notes: formData.notes,
-      avatarUrl: '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+  // Load children from localStorage
+  const loadFromLocalStorage = () => {
+    try {
+      const stored = localStorage.getItem(CHILDREN_STORAGE_KEY)
+      if (stored) {
+        const parsedChildren = JSON.parse(stored)
+        setChildren(parsedChildren)
+      } else {
+        // Use mock data if no local storage data exists
+        setChildren(mockChildren)
+        localStorage.setItem(CHILDREN_STORAGE_KEY, JSON.stringify(mockChildren))
+      }
+      setUsingLocalStorage(true)
+    } catch (err) {
+      console.error('Error loading from localStorage:', err)
+      setChildren(mockChildren)
+      setUsingLocalStorage(true)
     }
-    
-    setChildren([...children, newChild])
-    setFormData({ name: '', birthDate: '', school: '', grade: '', notes: '' })
-    setIsAddDialogOpen(false)
+  }
+
+  // Save children to localStorage
+  const saveToLocalStorage = (childrenData: Child[]) => {
+    try {
+      localStorage.setItem(CHILDREN_STORAGE_KEY, JSON.stringify(childrenData))
+    } catch (err) {
+      console.error('Error saving to localStorage:', err)
+    }
+  }
+
+  const loadChildren = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const user = await blink.auth.me()
+      if (user) {
+        // Try to load from database first
+        try {
+          const childrenData = await childrenService.getAll(user.id)
+          setChildren(childrenData)
+          setUsingLocalStorage(false)
+        } catch (dbError) {
+          console.error('Database error, falling back to localStorage:', dbError)
+          setError('Database temporarily unavailable. Using local storage.')
+          loadFromLocalStorage()
+        }
+      } else {
+        // No user, use mock data
+        setChildren(mockChildren)
+        setUsingLocalStorage(true)
+      }
+    } catch (error) {
+      console.error('Failed to load children:', error)
+      setError('Failed to load children data.')
+      loadFromLocalStorage()
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Load children on component mount
+  useEffect(() => {
+    loadChildren()
+  }, [loadChildren])
+
+  const generateId = () => {
+    return Date.now().toString() + Math.random().toString(36).substr(2, 9)
+  }
+
+  const handleAddChild = async () => {
+    try {
+      const user = await blink.auth.me()
+      const userId = user?.id || 'demo-user'
+
+      const newChild: Child = {
+        id: generateId(),
+        userId,
+        name: formData.name,
+        birthDate: formData.birthDate,
+        school: formData.school,
+        grade: formData.grade,
+        notes: formData.notes,
+        avatarUrl: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      if (usingLocalStorage) {
+        // Add to local storage
+        const updatedChildren = [newChild, ...children]
+        setChildren(updatedChildren)
+        saveToLocalStorage(updatedChildren)
+      } else {
+        // Try to add to database
+        try {
+          const createdChild = await childrenService.create({
+            userId,
+            name: formData.name,
+            birthDate: formData.birthDate,
+            school: formData.school,
+            grade: formData.grade,
+            notes: formData.notes
+          })
+          setChildren([createdChild, ...children])
+        } catch (dbError) {
+          console.error('Database error, saving to localStorage:', dbError)
+          const updatedChildren = [newChild, ...children]
+          setChildren(updatedChildren)
+          saveToLocalStorage(updatedChildren)
+          setUsingLocalStorage(true)
+          setError('Database temporarily unavailable. Changes saved locally.')
+        }
+      }
+      
+      setFormData({ name: '', birthDate: '', school: '', grade: '', notes: '' })
+      setIsAddDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to add child:', error)
+    }
   }
 
   const handleEditChild = (child: Child) => {
@@ -81,30 +192,76 @@ export function ChildrenManagement() {
     })
   }
 
-  const handleUpdateChild = () => {
+  const handleUpdateChild = async () => {
     if (!editingChild) return
     
-    const updatedChildren = children.map(child =>
-      child.id === editingChild.id
-        ? {
-            ...child,
-            name: formData.name,
-            birthDate: formData.birthDate,
-            school: formData.school,
-            grade: formData.grade,
-            notes: formData.notes,
-            updatedAt: new Date().toISOString()
-          }
-        : child
-    )
-    
-    setChildren(updatedChildren)
-    setEditingChild(null)
-    setFormData({ name: '', birthDate: '', school: '', grade: '', notes: '' })
+    try {
+      const updatedData = {
+        name: formData.name,
+        birthDate: formData.birthDate,
+        school: formData.school,
+        grade: formData.grade,
+        notes: formData.notes,
+        updatedAt: new Date().toISOString()
+      }
+
+      if (usingLocalStorage) {
+        // Update in local storage
+        const updatedChildren = children.map(child =>
+          child.id === editingChild.id ? { ...child, ...updatedData } : child
+        )
+        setChildren(updatedChildren)
+        saveToLocalStorage(updatedChildren)
+      } else {
+        // Try to update in database
+        try {
+          await childrenService.update(editingChild.id, updatedData)
+          setChildren(children.map(child =>
+            child.id === editingChild.id ? { ...child, ...updatedData } : child
+          ))
+        } catch (dbError) {
+          console.error('Database error, updating localStorage:', dbError)
+          const updatedChildren = children.map(child =>
+            child.id === editingChild.id ? { ...child, ...updatedData } : child
+          )
+          setChildren(updatedChildren)
+          saveToLocalStorage(updatedChildren)
+          setUsingLocalStorage(true)
+          setError('Database temporarily unavailable. Changes saved locally.')
+        }
+      }
+      
+      setEditingChild(null)
+      setFormData({ name: '', birthDate: '', school: '', grade: '', notes: '' })
+    } catch (error) {
+      console.error('Failed to update child:', error)
+    }
   }
 
-  const handleDeleteChild = (childId: string) => {
-    setChildren(children.filter(child => child.id !== childId))
+  const handleDeleteChild = async (childId: string) => {
+    try {
+      if (usingLocalStorage) {
+        // Delete from local storage
+        const updatedChildren = children.filter(child => child.id !== childId)
+        setChildren(updatedChildren)
+        saveToLocalStorage(updatedChildren)
+      } else {
+        // Try to delete from database
+        try {
+          await childrenService.delete(childId)
+          setChildren(children.filter(child => child.id !== childId))
+        } catch (dbError) {
+          console.error('Database error, deleting from localStorage:', dbError)
+          const updatedChildren = children.filter(child => child.id !== childId)
+          setChildren(updatedChildren)
+          saveToLocalStorage(updatedChildren)
+          setUsingLocalStorage(true)
+          setError('Database temporarily unavailable. Changes saved locally.')
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete child:', error)
+    }
   }
 
   const calculateAge = (birthDate: string) => {
@@ -123,8 +280,58 @@ export function ChildrenManagement() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase()
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Children</h1>
+            <p className="text-muted-foreground">Manage your children's profiles and information</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 bg-muted rounded-full" />
+                  <div className="flex-1">
+                    <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="h-3 bg-muted rounded w-full" />
+                <div className="h-3 bg-muted rounded w-2/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
+      {/* Error Alert */}
+      {error && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Storage Mode Alert */}
+      {usingLocalStorage && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Currently using local storage. Your data is saved in your browser and will persist between sessions.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -271,21 +478,21 @@ export function ChildrenManagement() {
                     <Calendar className="h-3 w-3 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">Events</span>
                   </div>
-                  <p className="text-sm font-semibold">5</p>
+                  <p className="text-sm font-semibold">0</p>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1">
                     <CheckSquare className="h-3 w-3 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">Tasks</span>
                   </div>
-                  <p className="text-sm font-semibold">3</p>
+                  <p className="text-sm font-semibold">0</p>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1">
                     <FileText className="h-3 w-3 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">Docs</span>
                   </div>
-                  <p className="text-sm font-semibold">2</p>
+                  <p className="text-sm font-semibold">0</p>
                 </div>
               </div>
               
@@ -400,7 +607,7 @@ export function ChildrenManagement() {
       </Dialog>
 
       {/* Empty State */}
-      {children.length === 0 && (
+      {children.length === 0 && !loading && (
         <Card className="text-center py-12">
           <CardContent>
             <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
